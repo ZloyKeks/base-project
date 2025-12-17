@@ -1,5 +1,7 @@
 package com.example.base.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class UserInfo {
     private Long id;
     private String username;
@@ -40,6 +42,7 @@ public class UserInfo {
         this.email = email;
     }
     
+    @JsonProperty("isAdmin")
     public boolean isAdmin() {
         return isAdmin;
     }

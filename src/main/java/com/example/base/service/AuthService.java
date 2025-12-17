@@ -94,5 +94,45 @@ public class AuthService {
             return new AuthResponse(null, null, false, "Invalid username or password");
         }
     }
+    
+    @Transactional
+    public String registerByAdmin(RegisterRequest request) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new RuntimeException("Username already exists");
+        }
+        
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
+        
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setEmail(request.getEmail());
+        
+        Set<Role> roles = new HashSet<>();
+        if (request.isAdmin()) {
+            Role adminRole = roleRepository.findByName(Role.RoleType.ADMIN)
+                .orElseGet(() -> {
+                    Role newRole = new Role();
+                    newRole.setName(Role.RoleType.ADMIN);
+                    return roleRepository.save(newRole);
+                });
+            roles.add(adminRole);
+        } else {
+            Role userRole = roleRepository.findByName(Role.RoleType.USER)
+                .orElseGet(() -> {
+                    Role newRole = new Role();
+                    newRole.setName(Role.RoleType.USER);
+                    return roleRepository.save(newRole);
+                });
+            roles.add(userRole);
+        }
+        user.setRoles(roles);
+        
+        userRepository.save(user);
+        
+        return "User registered successfully";
+    }
 }
 

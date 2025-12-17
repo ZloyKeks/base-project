@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Аутентификация</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -12,11 +13,6 @@
         <div id="auth-container" class="auth-container">
             <div class="auth-box">
                 <h1>Добро пожаловать</h1>
-                
-                <div class="auth-tabs">
-                    <button class="tab-btn active" onclick="showLogin()">Вход</button>
-                    <button class="tab-btn" onclick="showRegister()">Регистрация</button>
-                </div>
                 
                 <!-- Форма входа -->
                 <div id="login-form" class="auth-form">
@@ -31,24 +27,6 @@
                     <button onclick="login()" class="btn btn-primary">Войти</button>
                     <div id="login-error" class="error-message"></div>
                 </div>
-                
-                <!-- Форма регистрации -->
-                <div id="register-form" class="auth-form" style="display: none;">
-                    <div class="form-group">
-                        <label for="register-username">Имя пользователя:</label>
-                        <input type="text" id="register-username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-email">Email:</label>
-                        <input type="email" id="register-email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-password">Пароль:</label>
-                        <input type="password" id="register-password" required>
-                    </div>
-                    <button onclick="register()" class="btn btn-primary">Зарегистрироваться</button>
-                    <div id="register-error" class="error-message"></div>
-                </div>
             </div>
         </div>
         
@@ -60,6 +38,14 @@
                     <h2>Рабочее пространство</h2>
                 </div>
                 <div class="panel-right">
+                    <div id="admin-settings-btn" class="admin-settings-btn" style="display: none;">
+                        <button class="settings-icon-btn" onclick="toggleAdminPanel()" title="Панель администратора">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
+                            </svg>
+                        </button>
+                    </div>
                     <div class="user-menu">
                         <button class="user-icon-btn" onclick="toggleUserMenu()" title="Управление пользователем">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -73,6 +59,7 @@
                                 <div class="user-email" id="user-email-display"></div>
                                 <div class="user-role" id="user-role-display"></div>
                             </div>
+                            <button id="edit-current-user-btn" class="btn btn-edit" style="width: 100%; margin-bottom: 10px;">Изменить</button>
                             <button onclick="logout()" class="btn btn-logout">Выйти</button>
                         </div>
                     </div>
@@ -81,13 +68,90 @@
             
             <!-- Основной контент -->
             <div class="workspace-content">
-                <div class="content-area">
+                <!-- Главная страница -->
+                <div id="main-content" class="content-area">
                     <h3>Добро пожаловать, <span id="welcome-username"></span>!</h3>
                     <p>Вы успешно вошли в систему.</p>
-                    <div id="admin-section" style="display: none;">
-                        <h4>Панель администратора</h4>
-                        <button onclick="loadAllUsers()" class="btn btn-secondary">Показать всех пользователей</button>
-                        <div id="users-list"></div>
+                </div>
+                
+                <!-- Панель администратора -->
+                <div id="admin-panel" class="content-area" style="display: none;">
+                    <h3>Панель администратора</h3>
+                    
+                    <!-- Навигация панели администратора -->
+                    <div class="admin-nav">
+                        <button onclick="showAdminSection('users')" class="admin-nav-btn" id="admin-nav-users">
+                            Пользователи
+                        </button>
+                        <button onclick="showAdminSection('groups')" class="admin-nav-btn" id="admin-nav-groups">
+                            Группы пользователей
+                        </button>
+                    </div>
+                    
+                    <!-- Секция: Пользователи -->
+                    <div id="admin-section-users" class="admin-section-content" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h4>Управление пользователями</h4>
+                            <button onclick="openAddUserModal()" class="btn btn-primary">Добавить пользователя</button>
+                        </div>
+                        
+                        <div id="users-table-container">
+                            <table class="users-table">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" data-sort="username">Имя пользователя <span class="sort-arrow"></span></th>
+                                        <th class="sortable" data-sort="email">Email <span class="sort-arrow"></span></th>
+                                        <th class="sortable" data-sort="role">Роль <span class="sort-arrow"></span></th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body">
+                                    <!-- Данные загружаются через JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Секция: Группы пользователей -->
+                    <div id="admin-section-groups" class="admin-section-content" style="display: none;">
+                        <h4>Управление группами пользователей</h4>
+                        <p>Функционал управления группами пользователей будет добавлен позже.</p>
+                    </div>
+                </div>
+                
+                <!-- Модальное окно для добавления/редактирования пользователя -->
+                <div id="user-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <span class="modal-close" onclick="closeUserModal()">&times;</span>
+                        <h3 id="modal-title">Добавить пользователя</h3>
+                        <form id="user-form">
+                            <input type="hidden" id="modal-user-id" value="">
+                            <div class="form-group">
+                                <label for="modal-username">Имя пользователя:</label>
+                                <input type="text" id="modal-username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="modal-email">Email:</label>
+                                <input type="email" id="modal-email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="modal-password">Пароль:</label>
+                                <input type="password" id="modal-password">
+                                <small style="color: #666; font-size: 12px;">Оставьте пустым, чтобы не менять пароль (при редактировании)</small>
+                            </div>
+                            <div class="form-group" id="modal-role-group">
+                                <label for="modal-role">Роль:</label>
+                                <select id="modal-role" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px;">
+                                    <option value="false">Пользователь</option>
+                                    <option value="true">Администратор</option>
+                                </select>
+                            </div>
+                            <div id="modal-message" class="error-message" style="margin-top: 10px;"></div>
+                            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                <button type="button" onclick="saveUser()" class="btn btn-primary" style="flex: 1;">Сохранить</button>
+                                <button type="button" onclick="closeUserModal()" class="btn btn-secondary" style="flex: 1;">Отмена</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>

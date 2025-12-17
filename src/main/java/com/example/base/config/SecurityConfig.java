@@ -57,7 +57,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/", "/index.html", "/static/**", "/css/**", "/js/**").permitAll()
+                .requestMatchers("/api/auth/**", "/", "/index.html", "/static/**", "/css/**", "/js/**", "/favicon.ico", "/favicon.svg").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
