@@ -37,6 +37,20 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllUsers());
     }
     
+    @Autowired
+    private com.example.base.service.ActiveUserService activeUserService;
+    
+    @GetMapping("/list")
+    public ResponseEntity<List<UserInfo>> getUserList() {
+        return ResponseEntity.ok(userService.getAllUsers());
+    }
+    
+    @GetMapping("/active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<UserInfo>> getActiveUsers() {
+        return ResponseEntity.ok(activeUserService.getActiveUsers());
+    }
+    
     @PostMapping("/register")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> registerUser(@Valid @RequestBody RegisterRequest request) {

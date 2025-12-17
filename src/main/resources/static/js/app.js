@@ -4,6 +4,10 @@ let currentToken = null;
 let currentUser = null;
 let allUsers = []; // Храним список всех пользователей для сортировки
 let currentSort = { column: 'username', direction: 'desc' }; // Текущая сортировка (по умолчанию по имени по убыванию)
+let activeUsersUpdateInterval = null; // Интервал для обновления списка активных пользователей
+let lastActivityTime = null; // Время последней активности пользователя
+let inactivityCheckInterval = null; // Интервал для проверки неактивности
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 минут в миллисекундах
 
 // Очистить сообщения об ошибках
 function clearErrors() {
@@ -93,6 +97,99 @@ async function register() {
     }
 }
 
+// Обновить время последней активности
+function updateLastActivity() {
+    // Проверяем, что пользователь залогинен
+    const token = localStorage.getItem('token');
+    if (!token) {
+        return; // Не обновляем, если пользователь не залогинен
+    }
+    
+    lastActivityTime = Date.now();
+    // Сохраняем в localStorage для восстановления после перезагрузки страницы
+    localStorage.setItem('lastActivityTime', lastActivityTime.toString());
+}
+
+// Проверить неактивность и выполнить принудительный logout
+function checkInactivity() {
+    if (!lastActivityTime) {
+        // Пытаемся восстановить из localStorage
+        const savedTime = localStorage.getItem('lastActivityTime');
+        if (savedTime) {
+            lastActivityTime = parseInt(savedTime);
+        } else {
+            updateLastActivity();
+            return;
+        }
+    }
+    
+    // Проверяем, что пользователь все еще залогинен
+    const token = localStorage.getItem('token');
+    if (!token) {
+        // Пользователь уже разлогинен, останавливаем проверку
+        stopActivityTracking();
+        return;
+    }
+    
+    const timeSinceLastActivity = Date.now() - lastActivityTime;
+    const minutesInactive = Math.floor(timeSinceLastActivity / (60 * 1000));
+    const secondsInactive = Math.floor((timeSinceLastActivity % (60 * 1000)) / 1000);
+    
+    // Логируем только каждые 5 минут для уменьшения шума в консоли
+    if (minutesInactive > 0 && minutesInactive % 5 === 0 && secondsInactive < 30) {
+        console.log(`Проверка неактивности: прошло ${minutesInactive} минут с последней активности`);
+    }
+    
+    if (timeSinceLastActivity >= INACTIVITY_TIMEOUT) {
+        // Пользователь неактивен более 30 минут - принудительный logout
+        console.log('Пользователь неактивен более 30 минут, выполняется logout');
+        alert('Сеанс истек из-за неактивности (30 минут). Вы будете перенаправлены на страницу входа.');
+        logout();
+    }
+}
+
+// Запустить отслеживание активности
+function startActivityTracking() {
+    // Обновляем время активности при различных действиях пользователя
+    // Добавлены дополнительные события для лучшей совместимости с разными браузерами
+    const events = [
+        'mousedown', 'mouseup', 'mousemove', 
+        'keydown', 'keyup', 'keypress', 
+        'scroll', 'wheel',
+        'touchstart', 'touchend', 'touchmove',
+        'click', 'dblclick',
+        'focus', 'blur',
+        'input', 'change'
+    ];
+    
+    events.forEach(eventType => {
+        document.addEventListener(eventType, updateLastActivity, true);
+        window.addEventListener(eventType, updateLastActivity, true);
+    });
+    
+    // Также отслеживаем события на window для лучшей совместимости
+    window.addEventListener('focus', updateLastActivity, true);
+    window.addEventListener('blur', updateLastActivity, true);
+    
+    // Обновляем время активности при загрузке страницы
+    updateLastActivity();
+    
+    // Проверяем неактивность каждые 30 секунд для более быстрой реакции
+    inactivityCheckInterval = setInterval(checkInactivity, 30 * 1000); // Каждые 30 секунд
+    
+    console.log('Отслеживание активности запущено');
+}
+
+// Остановить отслеживание активности
+function stopActivityTracking() {
+    if (inactivityCheckInterval) {
+        clearInterval(inactivityCheckInterval);
+        inactivityCheckInterval = null;
+    }
+    lastActivityTime = null;
+    localStorage.removeItem('lastActivityTime');
+}
+
 // Показать рабочее пространство
 async function showWorkspace() {
     document.getElementById('auth-container').style.display = 'none';
@@ -100,6 +197,92 @@ async function showWorkspace() {
     
     // Загрузить информацию о пользователе (там уже есть проверка на админа)
     await loadUserInfo();
+    
+    // Загрузить список пользователей для главной страницы
+    await loadUsersList();
+    
+    // Запустить автоматическое обновление списка активных пользователей каждые 5 секунд
+    startActiveUsersUpdate();
+    
+    // Запустить отслеживание активности
+    startActivityTracking();
+}
+
+// Загрузить список пользователей для главной страницы
+async function loadUsersList() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    // НЕ обновляем время активности для автоматических запросов
+    // Время активности обновляется только при реальных действиях пользователя
+    
+    try {
+        // Проверяем, является ли текущий пользователь администратором
+        if (!currentUser) {
+            const usersCount = document.getElementById('users-count');
+            const usersList = document.getElementById('users-list');
+            if (usersCount) usersCount.textContent = '';
+            if (usersList) usersList.innerHTML = '';
+            return;
+        }
+        
+        const isAdmin = currentUser.isAdmin === true || currentUser.admin === true;
+        if (!isAdmin) {
+            // Обычные пользователи не видят список
+            const usersCount = document.getElementById('users-count');
+            const usersList = document.getElementById('users-list');
+            if (usersCount) usersCount.textContent = '';
+            if (usersList) usersList.innerHTML = '';
+            return;
+        }
+        
+        // Загружаем только активных пользователей
+        const response = await fetch(`${API_BASE_URL}/user/active`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const users = await response.json();
+            const usersList = document.getElementById('users-list');
+            const usersCount = document.getElementById('users-count');
+            
+            if (usersList && usersCount) {
+                // Отображаем количество активных пользователей
+                const count = users.length;
+                usersCount.textContent = `Активных пользователей: ${count}`;
+                
+                // Очищаем список
+                usersList.innerHTML = '';
+                
+                // Добавляем активных пользователей в список
+                users.forEach(user => {
+                    const li = document.createElement('li');
+                    li.style.padding = '8px 0';
+                    li.style.borderBottom = '1px solid #eee';
+                    li.innerHTML = `
+                        <strong>${user.username}</strong> 
+                        <span style="color: #666; margin-left: 10px;">${user.email}</span>
+                        <span style="color: #999; margin-left: 10px; font-size: 12px;">(${user.isAdmin ? 'Администратор' : 'Пользователь'})</span>
+                    `;
+                    usersList.appendChild(li);
+                });
+            }
+        } else if (response.status === 403) {
+            // Доступ запрещен
+            const usersCount = document.getElementById('users-count');
+            const usersList = document.getElementById('users-list');
+            if (usersCount) usersCount.textContent = '';
+            if (usersList) usersList.innerHTML = '';
+        }
+    } catch (error) {
+        console.error('Error loading users list:', error);
+        const usersCount = document.getElementById('users-count');
+        if (usersCount) {
+            usersCount.textContent = 'Ошибка загрузки списка пользователей';
+        }
+    }
 }
 
 // Загрузить информацию о пользоватеle
@@ -108,6 +291,12 @@ async function loadUserInfo() {
     if (!token) {
         showAuth();
         return;
+    }
+    
+    // Обновляем время активности только при первой загрузке после входа
+    // (это не автоматический запрос, а инициализация)
+    if (!lastActivityTime) {
+        updateLastActivity();
     }
     
     try {
@@ -604,8 +793,50 @@ document.addEventListener('click', function(event) {
     }
 });
 
+// Запустить автоматическое обновление списка активных пользователей
+function startActiveUsersUpdate() {
+    // Останавливаем предыдущий интервал, если он существует
+    stopActiveUsersUpdate();
+    
+    // Запускаем обновление каждые 5 секунд (5000 мс)
+    activeUsersUpdateInterval = setInterval(() => {
+        loadUsersList();
+    }, 5000);
+}
+
+// Остановить автоматическое обновление списка активных пользователей
+function stopActiveUsersUpdate() {
+    if (activeUsersUpdateInterval) {
+        clearInterval(activeUsersUpdateInterval);
+        activeUsersUpdateInterval = null;
+    }
+}
+
 // Выход
-function logout() {
+async function logout() {
+    // Останавливаем автоматическое обновление
+    stopActiveUsersUpdate();
+    
+    // Останавливаем отслеживание активности
+    stopActivityTracking();
+    
+    const token = localStorage.getItem('token');
+    
+    // Отправляем запрос на сервер для удаления из списка активных
+    if (token) {
+        try {
+            await fetch(`${API_BASE_URL}/auth/logout`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        } catch (error) {
+            console.error('Error during logout:', error);
+        }
+    }
+    
+    // Очищаем локальное хранилище
     localStorage.removeItem('token');
     localStorage.removeItem('username');
     localStorage.removeItem('isAdmin');
@@ -616,6 +847,12 @@ function logout() {
 
 // Показать форму аутентификации
 function showAuth() {
+    // Останавливаем автоматическое обновление списка активных пользователей
+    stopActiveUsersUpdate();
+    
+    // Останавливаем отслеживание активности
+    stopActivityTracking();
+    
     document.getElementById('auth-container').style.display = 'block';
     document.getElementById('workspace').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';

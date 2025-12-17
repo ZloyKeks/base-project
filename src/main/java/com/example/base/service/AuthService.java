@@ -40,6 +40,21 @@ public class AuthService {
     @Autowired
     private UserDetailsServiceImpl userDetailsService;
     
+    @Autowired
+    private ActiveUserService activeUserService;
+    
+    public void logout() {
+        // Получаем имя текущего пользователя из SecurityContext
+        org.springframework.security.core.Authentication authentication = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+            // Удаляем пользователя из списка активных
+            activeUserService.markUserInactive(username);
+        }
+    }
+    
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
@@ -88,6 +103,9 @@ public class AuthService {
             UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
             boolean isAdmin = user.isAdmin();
             String token = jwtUtil.generateToken(userDetails, isAdmin);
+            
+            // Отметить пользователя как активного
+            activeUserService.markUserActive(user.getUsername());
             
             return new AuthResponse(token, user.getUsername(), isAdmin, "Login successful");
         } catch (Exception e) {

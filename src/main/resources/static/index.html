@@ -35,7 +35,6 @@
             <!-- Верхняя панель -->
             <div class="top-panel">
                 <div class="panel-left">
-                    <h2>Рабочее пространство</h2>
                 </div>
                 <div class="panel-right">
                     <div id="admin-settings-btn" class="admin-settings-btn" style="display: none;">
@@ -71,7 +70,10 @@
                 <!-- Главная страница -->
                 <div id="main-content" class="content-area">
                     <h3>Добро пожаловать, <span id="welcome-username"></span>!</h3>
-                    <p>Вы успешно вошли в систему.</p>
+                    <div id="users-list-container">
+                        <p id="users-count">Загрузка...</p>
+                        <ul id="users-list" style="list-style: none; padding: 0; margin-top: 20px;"></ul>
+                    </div>
                 </div>
                 
                 <!-- Панель администратора -->
